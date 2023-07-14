@@ -30,7 +30,7 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this@MainActivity, locationFailedEnum.name, Toast.LENGTH_SHORT)
                 .show()
         }
-    }, false)
+    }, )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

@@ -1,7 +1,5 @@
 # AirLocation
 [![](https://jitpack.io/v/mobilefractal/xlocation.svg)](https://jitpack.io/#mumayank/AirLocation)
-<span class="badge-paypal"><a href="https://www.paypal.me/mumayank" title="Donate to this project using Paypal"><img src="https://img.shields.io/badge/paypal-donate-yellow.svg" alt="PayPal donate button" /></a></span>
-<a href="http://developer.android.com/index.html" target="_blank"><img src="https://img.shields.io/badge/platform-android-green.svg"/></a> <a href="https://android-arsenal.com/api?level=17" target="_blank"><img src="https://img.shields.io/badge/API-17%2B-green.svg?style=flat"/></a> ![Android CI](https://github.com/mumayank/AirLocation/workflows/Android%20CI/badge.svg?branch=master)
 
 An android library to simplify the usage of Google Play services location APIs, to get the user's most precise live location via a callback!
 
@@ -70,7 +68,7 @@ Example:
 
         private val airLocation = AirLocation(this, object : AirLocation.Callback {  
 
-            override fun onSuccess(locations: ArrayList<Location>) {  
+            override fun onSuccess(locations: ArrayList<Location>) {
                 // do something 
                 // the entire track is sent in locations
             }  
@@ -99,17 +97,5 @@ Example:
 
     }
 ```
-+ In some cases, you'd want to just get user's live location once. In such a case, simply pass `true` as the value of the parameter `isLocationRequiredOnlyOneTime`:
-```kotlin
-    private val airLocation = AirLocation(this, object : AirLocation.Callback {  
-        override fun onSuccess(locations: ArrayList<Location>) {  }  
-        override fun onFailure(locationFailedEnum: AirLocation.LocationFailedEnum) {  }  
-    }, true) // NOTE HERE: PASS true TO JUST GET USER'S LIVE LOCATION ONCE
-```
 
 ## Thank you!
-If you love the library, or it has helped you in any way, please give it a star! I'd really appreciate it!
-
-Post your feature requests/ pull requests/ bug reports in the appropriate section of this repository.
-
-Thank you :)

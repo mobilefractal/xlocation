@@ -20,10 +20,10 @@ import java.lang.ref.WeakReference
 class AirLocation(
     activity: Activity,
     private val callback: Callback?,
-    private val isLocationRequiredOnlyOneTime: Boolean = false,
+//    private val isLocationRequiredOnlyOneTime: Boolean = false,
     private val locationInterval: Long = 0,
     private val toastTextWhenOpenAppSettingsIfPermissionsPermanentlyDenied: String = "Please enable location permissions from settings to proceed"
-): Serializable {
+) : Serializable {
     /*
     declarations
      */
@@ -60,7 +60,7 @@ class AirLocation(
     private val locationOptimizationPermissionHelper = LocationOptimizationPermissionHelper(
         activity,
         locationInterval,
-        isLocationRequiredOnlyOneTime,
+        true,
         fun() {
             if (activityWeakReference.get() == null) {
                 return
@@ -142,7 +142,8 @@ class AirLocation(
         val activityTemp = activityWeakReference.get() ?: return
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(activityTemp)
-        addLifecycleListener()
+        requestLocationUpdates()
+//        addLifecycleListener()
 
 //        val task = fusedLocationClient.lastLocation
 //        task.addOnSuccessListener { location: Location? ->
@@ -195,14 +196,18 @@ class AirLocation(
         if (activityWeakReference.get() == null) {
             return
         }
+        val replySubmitted = booleanArrayOf(false)
 
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(locationResult: LocationResult) {
                 if (activityWeakReference.get() == null) {
                     return
                 }
-
-                locationResult ?: return
+                if (replySubmitted[0]) {
+                    return
+                }
+                replySubmitted[0] = true
+                fusedLocationClient.removeLocationUpdates(locationCallback)
                 callback?.onSuccess(locationResult.locations as ArrayList<Location>)
             }
 
@@ -210,10 +215,15 @@ class AirLocation(
                 if (activityWeakReference.get() == null) {
                     return
                 }
+                if (replySubmitted[0]) {
+                    return
+                }
+                replySubmitted[0] = true
+                fusedLocationClient.removeLocationUpdates(locationCallback)
 
                 if (!locationAvailability.isLocationAvailable) {
                     callback?.onFailure(LocationFailedEnum.HIGH_PRECISION_LOCATION_NA_TRY_AGAIN_PREFERABLY_WITH_NETWORK_CONNECTIVITY)
-                    fusedLocationClient.removeLocationUpdates(locationCallback)
+//                    fusedLocationClient.removeLocationUpdates(locationCallback)
                 }
             }
         }
@@ -221,7 +231,7 @@ class AirLocation(
         fusedLocationClient.requestLocationUpdates(
             LocationOptimizationPermissionHelper.getLocationRequest(
                 locationInterval,
-                isLocationRequiredOnlyOneTime
+                true
             ),
             locationCallback,
             Looper.getMainLooper()
