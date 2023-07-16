@@ -5,6 +5,7 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Intent
 import android.location.Location
+import android.os.Handler
 import android.os.Looper
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleObserver
@@ -36,16 +37,18 @@ class AirLocation(
 
     private val googlePlayApiHelper = GooglePlayApiHelper(activity, fun() {
         if (activityWeakReference.get() == null) {
+            onFailure(LocationFailedEnum.ACTIVITY_NOT_FOUND)
             return
         }
 
         getLocationPermissions()
     }, fun() {
         if (activityWeakReference.get() == null) {
+            onFailure(LocationFailedEnum.ACTIVITY_NOT_FOUND)
             return
         }
 
-        callback?.onFailure(LocationFailedEnum.GOOGLE_PLAY_API_NOT_AVAILABLE)
+        onFailure(LocationFailedEnum.GOOGLE_PLAY_API_NOT_AVAILABLE)
     })
 
     private val airPermissions = AirPermissions(activity, arrayOf(
@@ -54,7 +57,7 @@ class AirLocation(
     ), fun() {
         checkIfInFlightMode()
     }, fun() {
-        callback?.onFailure(LocationFailedEnum.LOCATION_PERMISSION_NOT_GRANTED)
+        onFailure(LocationFailedEnum.LOCATION_PERMISSION_NOT_GRANTED)
     })
 
     private val locationOptimizationPermissionHelper = LocationOptimizationPermissionHelper(
@@ -72,7 +75,7 @@ class AirLocation(
                 return
             }
 
-            callback?.onFailure(locationFailedEnum)
+            onFailure(locationFailedEnum)
         }
     )
 
@@ -82,7 +85,9 @@ class AirLocation(
         LOCATION_PERMISSION_NOT_GRANTED,
         LOCATION_OPTIMIZATION_PERMISSION_NOT_GRANTED,
         COULD_NOT_OPTIMIZE_DEVICE_HARDWARE,
-        HIGH_PRECISION_LOCATION_NA_TRY_AGAIN_PREFERABLY_WITH_NETWORK_CONNECTIVITY
+        HIGH_PRECISION_LOCATION_NA_TRY_AGAIN_PREFERABLY_WITH_NETWORK_CONNECTIVITY,
+        ACTIVITY_NOT_FOUND,
+        TIMEOUT
     }
 
     interface Callback {
@@ -90,13 +95,21 @@ class AirLocation(
         fun onFailure(locationFailedEnum: LocationFailedEnum)
     }
 
+    private fun onFailure(locationFailedEnum: LocationFailedEnum) {
+        timeoutHandler.removeCallbacks(timeoutRunnable)
+        callback?.onFailure(locationFailedEnum)
+    }
+
     /*
     start of logic
      */
-    fun start() {
+    fun start(timeout: Long = 30000) {
         if (activityWeakReference.get() == null) {
+            onFailure(LocationFailedEnum.ACTIVITY_NOT_FOUND)
             return
         }
+
+        this.timeout = timeout
 
         isStartCalled = true
         makeGooglePlayApiAvailable()
@@ -104,6 +117,7 @@ class AirLocation(
 
     private fun makeGooglePlayApiAvailable() {
         if (activityWeakReference.get() == null) {
+            onFailure(LocationFailedEnum.ACTIVITY_NOT_FOUND)
             return
         }
 
@@ -112,6 +126,7 @@ class AirLocation(
 
     private fun getLocationPermissions() {
         if (activityWeakReference.get() == null) {
+            onFailure(LocationFailedEnum.ACTIVITY_NOT_FOUND)
             return
         }
 
@@ -120,11 +135,12 @@ class AirLocation(
 
     private fun checkIfInFlightMode() {
         if (activityWeakReference.get() == null) {
+            onFailure(LocationFailedEnum.ACTIVITY_NOT_FOUND)
             return
         }
 
         if (NetworkHelper.isInFlightMode(activityWeakReference.get() as Activity)) {
-            callback?.onFailure(LocationFailedEnum.DEVICE_IN_FLIGHT_MODE)
+            onFailure(LocationFailedEnum.DEVICE_IN_FLIGHT_MODE)
         } else {
             getOptimizationPermissions()
         }
@@ -132,6 +148,7 @@ class AirLocation(
 
     private fun getOptimizationPermissions() {
         if (activityWeakReference.get() == null) {
+            onFailure(LocationFailedEnum.ACTIVITY_NOT_FOUND)
             return
         }
 
@@ -139,6 +156,10 @@ class AirLocation(
     }
 
     private fun getFusedLocation() {
+        if (activityWeakReference.get() == null) {
+            onFailure(LocationFailedEnum.ACTIVITY_NOT_FOUND)
+            return
+        }
         val activityTemp = activityWeakReference.get() ?: return
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(activityTemp)
@@ -169,12 +190,17 @@ class AirLocation(
     }
 
     private fun addLifecycleListener() {
+        if (activityWeakReference.get() == null) {
+            onFailure(LocationFailedEnum.ACTIVITY_NOT_FOUND)
+            return
+        }
         val activityTemp = activityWeakReference.get() ?: return
 
         (activityTemp as LifecycleOwner).lifecycle.addObserver(object : LifecycleObserver {
             @OnLifecycleEvent(Lifecycle.Event.ON_RESUME)
             fun connectListener() {
                 if (activityWeakReference.get() == null) {
+                    onFailure(LocationFailedEnum.ACTIVITY_NOT_FOUND)
                     return
                 }
 
@@ -184,6 +210,7 @@ class AirLocation(
             @OnLifecycleEvent(Lifecycle.Event.ON_PAUSE)
             fun disconnectListener() {
                 if (activityWeakReference.get() == null) {
+                    onFailure(LocationFailedEnum.ACTIVITY_NOT_FOUND)
                     return
                 }
 
@@ -194,13 +221,18 @@ class AirLocation(
 
     private fun requestLocationUpdates() {
         if (activityWeakReference.get() == null) {
+            onFailure(LocationFailedEnum.ACTIVITY_NOT_FOUND)
             return
         }
         val replySubmitted = booleanArrayOf(false)
 
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(locationResult: LocationResult) {
+                // Cancel the timeout mechanism since we received a location update
+                timeoutHandler.removeCallbacks(timeoutRunnable)
+
                 if (activityWeakReference.get() == null) {
+                    onFailure(LocationFailedEnum.ACTIVITY_NOT_FOUND)
                     return
                 }
                 if (replySubmitted[0]) {
@@ -213,6 +245,7 @@ class AirLocation(
 
             override fun onLocationAvailability(locationAvailability: LocationAvailability) {
                 if (activityWeakReference.get() == null) {
+                    onFailure(LocationFailedEnum.ACTIVITY_NOT_FOUND)
                     return
                 }
                 if (replySubmitted[0]) {
@@ -222,7 +255,7 @@ class AirLocation(
                 fusedLocationClient.removeLocationUpdates(locationCallback)
 
                 if (!locationAvailability.isLocationAvailable) {
-                    callback?.onFailure(LocationFailedEnum.HIGH_PRECISION_LOCATION_NA_TRY_AGAIN_PREFERABLY_WITH_NETWORK_CONNECTIVITY)
+                    onFailure(LocationFailedEnum.HIGH_PRECISION_LOCATION_NA_TRY_AGAIN_PREFERABLY_WITH_NETWORK_CONNECTIVITY)
 //                    fusedLocationClient.removeLocationUpdates(locationCallback)
                 }
             }
@@ -236,7 +269,18 @@ class AirLocation(
             locationCallback,
             Looper.getMainLooper()
         )
+        timeoutHandler.postDelayed(timeoutRunnable, timeout)
+
     }
+
+    private var timeout: Long = 30000
+
+    private val timeoutHandler = Handler(Looper.getMainLooper())
+    private val timeoutRunnable = Runnable {
+        fusedLocationClient.removeLocationUpdates(locationCallback)
+        callback?.onFailure(LocationFailedEnum.TIMEOUT)
+    }
+
 
     fun onRequestPermissionsResult(
         requestCode: Int,

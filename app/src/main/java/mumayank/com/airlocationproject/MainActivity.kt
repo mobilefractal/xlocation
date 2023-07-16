@@ -41,7 +41,7 @@ class MainActivity : AppCompatActivity() {
 
         binding.button2.setOnClickListener {
             binding.progressBar.visibility = View.VISIBLE
-            airLocation.start()
+            airLocation.start(timeout = 30000)
         }
 
     }
